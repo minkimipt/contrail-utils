@@ -1,0 +1,26 @@
+Contrail Diagnostic Utility
+
+Collect information of system, logging, services and roles.
+Build info package for analysis.
+
+# System Info
+
+contrail-version
+contrail-status
+openstack-status
+
+# Logging
+
+/var/log/contrail
+/var/log/nova
+
+# Services
+
+# Control
+
+http://<control node>:8083
+
+# vRouter
+
+http://<compute node>:8085
+
