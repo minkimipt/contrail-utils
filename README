@@ -1,26 +1,41 @@
 Contrail Diagnostic Utility
 
-Collect information of system, logging, services and roles.
+Implement with fab utility to diagnose all servers.
+Collect information of system, logging, services.
 Build info package for analysis.
 
-# System Info
 
-contrail-version
-contrail-status
-openstack-status
+# Server Info
 
-# Logging
+network connectivity
+memory usage
+disk usage
+date setting
 
-/var/log/contrail
-/var/log/nova
 
-# Services
+# OpenStack
 
-# Control
+version
+status of front-end services
+status back-end services
+
+basic diagnosis of each service
+
+logging
+
+
+# Contrail
+
+version
+
+status of front-end services
+status back-end services
+
+basic diagnosis of each service
+
+logging
+
 
 http://<control node>:8083
-
-# vRouter
-
 http://<compute node>:8085
 
