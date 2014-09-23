@@ -1,41 +1,61 @@
-Contrail Diagnostic Utility
+OpenContrail Diagnosis Utility
 
-Implement with fab utility to diagnose all servers.
-Collect information of system, logging, services.
-Build info package for analysis.
+Server Node
+* Memory usage
+* Disk usage
+* Version and role
+
+Discovery
+* Check process running state.
+* On port 5998, get services registered to discovery.
+* On port 5998, get clients requesting services info from discovery.
+
+Configuration API Server
+* Check process running state.
+* On port 8082, get /projects.
+
+Schema Transformer
+* Check process running state.
+* Check connection to IF-MAP server to demertine active or passive.
+
+Service Monitor
+* Check process running state.
+* Check connection to IF-MAP server to demertine active or passive.
+
+Cassandra
+
+RabbitMQ
+* Check cluster status.
+
+Analytics API Server
+* Check process running state.
+* On port 8081, get /analytics/uves/generators, and all node UVEs.
+* Run contrail-logs.
+
+Collector
+* Check process running state.
+* Check the connection to Redis server.
+* Check the connection to Cassandra.
+
+Query Engine
+* Check process running state.
+* Check the connection to Redis server.
+* Check the connection to Cassandra.
+
+Redis Server
+* Check process running state.
+
+Control
+* Check process running state.
+* Check the connection to IF-MAP server.
+
+DNS
+* Check process running state.
+* Check the connection to IF-MAP server.
+
+vRouter Agent
+* Check process running state.
+* Check the connection to control.
 
 
-# Server Info
-
-network connectivity
-memory usage
-disk usage
-date setting
-
-
-# OpenStack
-
-version
-status of front-end services
-status back-end services
-
-basic diagnosis of each service
-
-logging
-
-
-# Contrail
-
-version
-
-status of front-end services
-status back-end services
-
-basic diagnosis of each service
-
-logging
-
-
-http://<control node>:8083
-http://<compute node>:8085
 
