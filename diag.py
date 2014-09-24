@@ -9,92 +9,125 @@ try:
 except:
     distribution = 'centos'
 
+class DiagUtils():
+    def __init__(self):
+        pass
 
-class DiagConfig():
-    def __init__(self, ssh):
-        self.ssh = ssh
+    def log(self, line, stdout = True):
+        self.file.write(line)
+        if stdout:
+            print(line.rstrip('\n'))
 
-    def process_check(self, name):
+    def log_open(self):
+        self.file = open('diag.log', 'w+')
+
+    def log_close(self):
+        self.file.close()
+
+    def curl_get(self, ssh, url, parse = False):
+        parse_cmd = ''
+        if parse:
+            parse_cmd = ' | python -mjson.tool'
+    
+        cmd = 'curl -sS %s' %(url) + parse_cmd
+        (stdin, stdout, stderr) = ssh.exec_command(cmd)
+        return stdout.readlines()
+
+    def process_check(self, ssh, name):
         cmd = 'ps -C %s -o pid=' %(name)
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
+        (stdin, stdout, stderr) = ssh.exec_command(cmd)
         output = stdout.readline()
         if output:
-            print 'Process %s, running, PID %s' %(name, output)
+            self.log('    Process %s, running, PID %s' %(name, output))
             return True
         else:
-            print 'Process %s, not running' %(name)
+            self.log('    Process %s, not running\n' %(name))
             return False
 
-    def api_server(self):
-        print '\nConfiguration API Server'
-        print '----------------'
+diag_utils = DiagUtils()
 
-        if not self.process_check('contrail-api'):
+
+class DiagConfig():
+    def __init__(self, ssh, addr):
+        self.ssh = ssh
+        self.addr = addr
+
+    def api_server(self):
+        diag_utils.log('\nConfiguration API Server\n')
+        diag_utils.log('----------------\n')
+
+        diag_utils.log('\nChecking processs...\n')
+        if not diag_utils.process_check(self.ssh, 'contrail-api'):
             return
+
+        diag_utils.log('\nChecking API port...\n')
+        url = 'http://%s:8082/projects' %(self.addr)
+        for line in diag_utils.curl_get(self.ssh, url, parse = True):
+            diag_utils.log(line)
+
 
     def discovery(self):
-        print '\nDiscovery'
-        print '----------------'
+        diag_utils.log('\nDiscovery\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-discovery'):
+        diag_utils.log('\nChecking processs...\n')
+        if not diag_utils.process_check(self.ssh, 'contrail-discovery'):
             return
 
-        cmd = 'curl http://10.84.18.3:5998/services.json'
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
-        services = eval(stdout.readline())['services']
-        print 'Services/Publishers:'
-        for svc in services:
-            print '    %s' %(svc['service_type'])
-            print '        Address: %s:%s' %(svc['info']['ip-address'],
-                    svc['info']['port'])
-            print '        Status: %s' %(svc['status'])
-            print '        Admin State: %s' %(svc['admin_state'])
+        diag_utils.log('\nChecking registered services/publishers...\n')
+        url = 'http://%s:5998/services.json' %(self.addr)
+        svc_list = eval(diag_utils.curl_get(self.ssh, url)[0])['services']
+        for svc in svc_list:
+            diag_utils.log('    %s\n' %(svc['service_type']))
+            diag_utils.log('        Address: %s:%s\n' %(svc['info']['ip-address'],
+                    svc['info']['port']))
+            diag_utils.log('        Status: %s\n' %(svc['status']))
+            diag_utils.log('        Admin State: %s\n' %(svc['admin_state']))
 
-        cmd = 'curl http://10.84.18.3:5998/clients.json'
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
-        clients = eval(stdout.readline())['services']
-        print 'Clients/Subscribers:'
-        for client in clients:
-            print '    %s' %(client['client_type'])
-            print '        Required Service: %s' %(client['service_type'])
+        diag_utils.log('\nChecking registered clients/subscribers...\n')
+        url = 'http://%s:5998/clients.json' %(self.addr)
+        client_list = eval(diag_utils.curl_get(self.ssh, url)[0])['services']
+        for client in client_list:
+            diag_utils.log('    %s\n' %(client['client_type']))
+            diag_utils.log('        Required Service: %s\n' %(client['service_type']))
 
     def schema(self):
-        print '\nSchema Transformer'
-        print '----------------'
+        diag_utils.log('\nSchema Transformer\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-schema'):
+        if not diag_utils.process_check(self.ssh, 'contrail-schema'):
             return
 
     def svc_monitor(self):
-        print '\nService Monitor'
-        print '----------------'
+        diag_utils.log('\nService Monitor\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-svc-monitor'):
+        if not diag_utils.process_check(self.ssh, 'contrail-svc-monitor'):
             return
 
     def ifmap(self):
-        print '\nIF-MAP Server'
-        print '----------------'
+        diag_utils.log('\nIF-MAP Server\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('ifmap-server'):
+        if not diag_utils.process_check(self.ssh, 'ifmap-server'):
             return
 
     def rabbitmq(self):
-        print 'RabbitMQ'
-        print '----------------'
+        diag_utils.log('RabbitMQ\n')
+        diag_utils.log('----------------\n')
 
         cmd = 'rabbitmqctl cluster_status'
         (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
         for line in stdout.readlines():
-            print line.rstrip('\n')
+            diag_utils.log(line)
 
     def node_manager(self):
-        #print 'Node Manager'
-        #print '----------------'
+        #diag_utils.log('Node Manager\n')
+        #diag_utils.log('----------------\n')
         pass
 
     def diag(self):
-        print '\n==== Configuration ===='
+        diag_utils.log('\n==== Configuration ====\n')
         self.api_server()
         self.discovery()
         self.schema()
@@ -105,46 +138,58 @@ class DiagConfig():
 
 
 class DiagAnalytics():
-    def __init__(self, ssh):
+    def __init__(self, ssh, addr):
         self.ssh = ssh
+        self.addr = addr
 
-    def process_check(self, name):
-        cmd = 'ps -C %s -o pid=' %(name)
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
-        output = stdout.readline()
-        if output:
-            print 'Process %s, running, PID %s' %(name, output)
-            return True
-        else:
-            print 'Process %s, not running' %(name)
-            return False
+    def node_check(self, name):
+        diag_utils.log('\nChecking %s...\n' %(name))
+        url = 'http://%s:8081/analytics/uves/%s' %(self.addr, name)
+        for node in eval(diag_utils.curl_get(self.ssh, url)[0]):
+            diag_utils.log('    %s' %(node['name']))
+            for line in diag_utils.curl_get(self.ssh, node['href'],
+                    parse = True):
+                diag_utils.log(line, stdout = False)
+
 
     def api_server(self):
-        print '\nAnalytics API Server'
-        print '----------------'
+        diag_utils.log('\nAnalytics API Server\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-analytics-api'):
+        diag_utils.log('\nChecking processs...\n')
+        if not diag_utils.process_check(self.ssh, 'contrail-analytics-api'):
             return
 
-    def collector(self):
-        print '\nCollector'
-        print '----------------'
+        diag_utils.log('\nChecking generators...\n')
+        url = 'http://%s:8081/analytics/uves/generators' %(self.addr)
+        for generator in eval(diag_utils.curl_get(self.ssh, url)[0]):
+            diag_utils.log('    %s\n' %(generator['name']))
 
-        if not self.process_check('contrail-collector'):
+        self.node_check('config-nodes')
+        self.node_check('analytics-nodes')
+        self.node_check('control-nodes')
+        self.node_check('vrouters')
+        self.node_check('databases')
+
+    def collector(self):
+        diag_utils.log('\nCollector\n')
+        diag_utils.log('----------------\n')
+
+        if not diag_utils.process_check(self.ssh, 'contrail-collector'):
             return
 
     def query_engine(self):
-        print '\nQuery Engine'
-        print '----------------'
+        diag_utils.log('\nQuery Engine\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-query-engine'):
+        if not diag_utils.process_check(self.ssh, 'contrail-query-engine'):
             return
 
     def node_manager(self):
         pass
 
     def diag(self):
-        print '\n==== Analytics ===='
+        diag_utils.log('\n==== Analytics ====\n')
         self.api_server()
         self.collector()
         self.query_engine()
@@ -152,46 +197,36 @@ class DiagAnalytics():
 
 
 class DiagControl():
-    def __init__(self, ssh):
+    def __init__(self, ssh, addr):
         self.ssh = ssh
-
-    def process_check(self, name):
-        cmd = 'ps -C %s -o pid=' %(name)
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
-        output = stdout.readline()
-        if output:
-            print 'Process %s, running, PID %s' %(name, output)
-            return True
-        else:
-            print 'Process %s, not running' %(name)
-            return False
+        self.addr = addr
 
     def control(self):
-        print '\nControl'
-        print '----------------'
+        diag_utils.log('\nControl\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-control'):
+        if not diag_utils.process_check(self.ssh, 'contrail-control'):
             return
 
     def dns(self):
-        print '\nDNS'
-        print '----------------'
+        diag_utils.log('\nDNS\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('dnsd'):
+        if not diag_utils.process_check(self.ssh, 'dnsd'):
             return
 
     def named(self):
-        print '\nnamed'
-        print '----------------'
+        diag_utils.log('\nnamed\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('named'):
+        if not diag_utils.process_check(self.ssh, 'named'):
             return
 
     def node_manager(self):
         pass
 
     def diag(self):
-        print '\n==== Control ===='
+        diag_utils.log('\n==== Control ====\n')
         self.control()
         self.dns()
         self.named()
@@ -199,32 +234,22 @@ class DiagControl():
 
 
 class DiagCompute():
-    def __init__(self, ssh):
+    def __init__(self, ssh, addr):
         self.ssh = ssh
-
-    def process_check(self, name):
-        cmd = 'ps -C %s -o pid=' %(name)
-        (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
-        output = stdout.readline()
-        if output:
-            print 'Process %s, running, PID %s' %(name, output)
-            return True
-        else:
-            print 'Process %s, not running' %(name)
-            return False
+        self.addr = addr
 
     def vrouter_agent(self):
-        print '\nvRouter Agent'
-        print '----------------'
+        diag_utils.log('\nvRouter Agent\n')
+        diag_utils.log('----------------\n')
 
-        if not self.process_check('contrail-vrouter-agent'):
+        if not diag_utils.process_check(self.ssh, 'contrail-vrouter-agent'):
             return
 
     def node_manager(self):
         pass
 
     def diag(self):
-        print '\n==== Compute ===='
+        diag_utils.log('\n==== Compute ====\n')
         self.vrouter_agent()
         self.node_manager()
 
@@ -234,7 +259,7 @@ class DiagDatabase():
         self.ssh = ssh
 
     def diag(self):
-        print '\n==== Database ===='
+        diag_utils.log('\n==== Database ====\n')
 
 
 class DiagNode():
@@ -253,20 +278,20 @@ class DiagNode():
             self.ssh = None
 
     def node_memory(self):
-        print '\nMemory and Process Summary:'
-        print '----------------'
+        diag_utils.log('\nMemory and Process Summary:\n')
+        diag_utils.log('----------------\n')
         cmd = 'top -b -n 1 | grep -C 2 "Cpu(s)"'
         (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
         for line in stdout.readlines():
-            print line.rstrip('\n')
+            diag_utils.log(line)
 
     def node_disk(self):
-        print '\nDisk Usage Summary:'
-        print '----------------'
+        diag_utils.log('\nDisk Usage Summary:\n')
+        diag_utils.log('----------------\n')
         cmd = 'df'
         (stdin, stdout, stderr) = self.ssh.exec_command(cmd)
         for line in stdout.readlines():
-            print line.rstrip('\n')
+            diag_utils.log(line)
 
     def diag(self, addr, username, password):
         role_list = [
@@ -276,10 +301,10 @@ class DiagNode():
                 ('contrail-control', DiagControl),
                 ('dummy', DiagControl),
                 ('contrail-vrouter', DiagCompute)]
-        print '======== Node %s ========' %(addr)
+        diag_utils.log('======== Node %s ========\n' %(addr))
         self.ssh_connect(addr, username, password)
         if not self.ssh:
-            print 'ERROR: Failed to Connect to %s!' %(addr)
+            diag_utils.log('ERROR: Failed to Connect to %s!\n' %(addr))
             return
 
         self.node_memory()
@@ -296,14 +321,14 @@ class DiagNode():
                 (stdin, stdout, stderr) = self.ssh.exec_command(
                         pkg_cmd + role[0])
                 if stdout.readline():
-                   role[1](self.ssh).diag()
+                   role[1](self.ssh, addr).diag()
         else:
             pkg_cmd = 'rpm -q '
             for role in role_list:
                 (stdin, stdout, stderr) = self.ssh.exec_command(
                         pkg_cmd + role[0])
                 if stdout.readline().find('not installed') == -1:
-                   role[1](self.ssh).diag()
+                   role[1](self.ssh, addr).diag()
 
 
 class DiagShell():
@@ -327,8 +352,10 @@ class DiagShell():
 
     def run(self, args):
         node = DiagNode()
+        diag_utils.log_open()
         for addr in args.address:
             node.diag(addr, args.username, args.password)
+        diag_utils.log_close()
 
     def main(self):
         args = self.parse()
