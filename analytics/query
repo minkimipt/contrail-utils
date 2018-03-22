@@ -1,0 +1,57 @@
+#!/bin/sh
+
+#contrail-stats  --table UveVMInterfaceAgent.fip_diff_stats
+
+cmd()
+{
+    contrail-stats --table UveVMInterfaceAgent.fip_diff_stats \
+        --select \
+            "SUM(fip_diff_stats.out_pkts)" \
+            "fip_diff_stats.virtual_network" \
+            "fip_diff_stats.ip_address" \
+            "fip_diff_stats.in_pkts" \
+            "fip_diff_stats.in_bytes" \
+            "fip_diff_stats.out_pkts" \
+            "fip_diff_stats.out_bytes" \
+        --last 1d \
+        --admin-user admin \
+        --admin-password contrail123
+}
+
+rest()
+{
+    et=$(date +%s%N | cut -b1-16)
+    st=$((et-3600000000))
+
+    curl -s \
+        -H "X-Auth-Token: $token" \
+        -H "Content-Type: application/json" \
+        -d "
+{
+    \"table\": \"StatTable.UveVMInterfaceAgent.fip_diff_stats\",
+    \"start_time\": $st,
+    \"end_time\": $et,
+    \"select_fields\": [
+        \"SUM(fip_diff_stats.out_pkts)\",
+        \"fip_diff_stats.virtual_network\",
+        \"fip_diff_stats.ip_address\",
+        \"fip_diff_stats.in_pkts\",
+        \"fip_diff_stats.in_bytes\",
+        \"fip_diff_stats.out_pkts\",
+        \"fip_diff_stats.out_bytes\"],
+    \"where\": [[{
+        \"name\": \"Source\",
+        \"value\": \"\",
+        \"op\": 7}]]
+}" http://localhost:8081/analytics/query
+}
+
+test()
+{
+    echo test
+}
+
+token=$(openstack token issue | awk '/ id / {print $4}')
+
+cmd
+
