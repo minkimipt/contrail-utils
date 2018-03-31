@@ -1,0 +1,353 @@
+#!/usr/bin/python
+
+import sys
+import uuid
+import readline
+import cmd2
+import json
+from vnc_api import vnc_api
+from res_identifier import res_identifier
+from res_type import res_type
+
+config_env = {
+    'auth-username' : 'admin',
+    'auth-password' : 'contrail123',
+    'auth-tenant' : 'admin',
+    'auth-region' : 'RegionOne',
+    'auth-server' : '127.0.0.1',
+    'api-server' : '127.0.0.1',
+    'tenant' : 'demo',
+    'format' : 'json'}
+
+
+class Edit(object):
+    def __init__(self):
+        self.mode = False
+        self.name = None
+        self.obj = None
+        self.id_name = None
+        self.uuid = None
+        self.update = False
+        self.type = [''] * 64
+
+class Config(cmd2.Cmd):
+    def __init__(self):
+        cmd2.Cmd.__init__(self)
+        readline.set_completer_delims(' ')
+        self.vnc = vnc_api.VncApi(
+                username = config_env['auth-username'],
+                password = config_env['auth-password'],
+                tenant_name = config_env['auth-tenant'],
+                api_server_host = config_env['api-server'],
+                auth_host = config_env['auth-server'])
+
+        try:
+            self.tenant = self.vnc.project_read(
+                    fq_name = ['default-domain', config_env['tenant']])
+            self.prompt = '%s# ' %(self.tenant.name)
+        except:
+            self.tenant = None
+            self.prompt = '/# '
+        self.edit = Edit()
+
+    def do_env(self, args):
+        if not args:
+            return
+        arg_list = args.split(' ')
+        if not config_env.has_key(arg_list[0]):
+            print 'ERROR: No env %s!' %(arg_list[0])
+            return
+        config_env[arg_list[0]] = arg_list[1]
+
+    def prompt_op(self):
+        if self.tenant:
+            self.prompt = '%s# ' %(self.tenant.name)
+        else:
+            self.prompt = '/# '
+
+    def prompt_edit(self, name = None):
+        self.prompt = 'edit# '
+
+    def do_tenant(self, name):
+        if name == '/':
+            self.tenant = None
+        else:
+            try:
+                self.tenant = self.vnc.project_read(
+                        fq_name = ['default-domain', name])
+            except Exception as e:
+                print 'ERROR: %s' %(str(e))
+        self.prompt_op()
+
+    def res_list_get(self, id_name):
+        func_name = id_name.replace('-', '_')+'s_list'
+        func = getattr(self.vnc, func_name)
+        res_list = func()[id_name + 's']
+        name_list = []
+        for res in res_list:
+            name_str = ''
+            for i in res['fq_name']:
+                name_str += '%s:' %(i)
+            name_list.append(name_str.rstrip(':'))
+        return name_list
+
+    def res_obj_get(self, id_name, name):
+        func_name = id_name.replace('-', '_')+'_read'
+        func = getattr(self.vnc, func_name)
+        obj = func(fq_name = name.split(':'))
+        return obj
+
+    def show_res_list(self, name):
+        for res in self.res_list_get(name):
+            print res
+
+    def show_res_obj(self, res, name):
+        obj = self.res_obj_get(res, name)
+        if config_env['format'] == 'dump':
+            obj.dump()
+        else:
+            print json.dumps(obj, default = self.vnc._obj_serializer_all,
+                    indent=4, separators=(',', ': '))
+
+    def show_op(self, args):
+        arg_list = args.split(' ')
+        if len(arg_list) == 1:
+            self.show_res_list(arg_list[0])
+        elif len(arg_list) == 2:
+            self.show_res_obj(arg_list[0], arg_list[1])
+        else:
+            print 'ERROR: too many arguments!'
+
+    def show_edit(self, args):
+        if not self.edit.obj:
+            print 'name: %s' %(self.edit.name)
+            return
+        if config_env['format'] == 'dump':
+            self.edit.obj.dump()
+        else:
+            print json.dumps(self.edit.obj,
+                    default = self.vnc._obj_serializer_all,
+                    indent=4, separators=(',', ': '))
+
+    def do_show(self, args):
+        if self.edit.mode:
+            self.show_edit(args)
+        else:
+            self.show_op(args)
+
+    def complete_res_name(self, text, line):
+        #print 'complete: %s, %s, %s, %s' %(text, line, begidx, endidx)
+        arg_list = line.split(' ')
+        arg_count = len(arg_list) - 1
+        list_all = []
+        if arg_count ==1:
+            list_all = res_identifier.keys()
+        elif arg_count == 2:
+            list_all = self.res_list_get(arg_list[1])
+        if not text:
+            completions = list_all
+        else:
+            completions = [ i for i in list_all if i.startswith(text) ]
+        return completions
+
+    def complete_show(self, text, line, begidx, endidx):
+        return self.complete_res_name(text, line)
+
+    def res_obj_create(self, id_name, name):
+        id = res_identifier[id_name]
+        if (name == 'uuid'):
+            self.edit.uuid = str(uuid.uuid4())
+            self.edit.name = self.edit.uuid
+        else:
+            self.edit.uuid = None
+            self.edit.name = name
+        if id['parent'] and (len(id['parent']) > 1):
+            # If the resource has mulitple parents, the object will be
+            # created when parent is set.
+            obj = None
+        else:
+            id_class = getattr(vnc_api, id['class-name'])
+            if (name == 'uuid'):
+                obj = id_class(name = self.edit.uuid)
+                obj.uuid = self.edit.uuid
+            else:
+                obj = id_class(name = name)
+        return obj
+
+    def do_edit(self, args):
+        if self.edit.mode:
+            print 'Already in edit mode.'
+            return
+        args = args.split(' ')
+        if not res_identifier.has_key(args[0]):
+            print 'ERROR: Resource %s does not exist!' %(args[0])
+            return
+        self.edit.id_name = args[0]
+        if len(args) > 1:
+            try:
+                self.edit.obj = self.res_obj_get(args[0], args[1])
+                self.edit.name = args[1]
+                self.edit.update = True
+            except:
+                self.edit.obj = self.res_obj_create(args[0], args[1])
+                self.edit.update = False
+        self.edit.mode = True
+        self.prompt_edit()
+
+    def complete_edit(self, text, line, begidx, endidx):
+        return self.complete_res_name(text, line)
+
+    def do_commit(self, args):
+        if not args:
+            if self.edit.update:
+                print 'Object is updated.'
+            else:
+                print 'Object is created.'
+        else:
+            if self.edit.update:
+                print 'Object is not updated.'
+            else:
+                print 'Object is not created.'
+        self.edit.mode = False
+        self.prompt_op()
+
+    def set_parent(self, id_name, name):
+        fq_name = name.split(':')
+        func_str = id_name.replace('-', '_') + '_read'
+        func = getattr(self.vnc, func_str)
+        try:
+            parent = func(fq_name = fq_name)
+        except:
+            print 'EXCEPT: Read parent %s!' %(parent_name)
+            return
+        if self.edit.obj:
+            self.edit.obj.fq_name = list(parent.fq_name)
+            self.edit.obj.fq_name.append(self.edit.name)
+        else:
+            id_class = getattr(vnc_api, res_identifier[id_name]['class-name'])
+            self.edit.obj = id_class(name = self.edit.name,
+                    parent_obj = parent)
+            if self.edit.uuid:
+                self.edit.obj.uuid = self.edit.uuid
+
+    def is_attr_val(self, obj, attr_name):
+        attr = getattr(obj.__class__, attr_name, [])
+        if not attr:
+            return False
+        doc = inspect.getdoc(attr)
+        if not doc.split('returns: ')[1].startswith('xsd'):
+            return False
+        return True
+
+    def set_attr_val(self, obj, attr_name, attr_val):
+        func = getattr(obj.__class__, 'set_' + attr_name)
+        func(obj, attr_val)
+        return True
+
+    def set_type(self, args, idx, type_name, obj):
+        type = res_type[type_name]
+        val_name = args[idx + 1]
+        if not val_name in type['member'].keys():
+            print 'ERROR: %s does not have %s!' %(type_name, val_name)
+            return
+        val_type = type['member'][val_name]['type']
+        set_func = getattr(obj.__class__, 'set_' + val_name)
+        get_func = getattr(obj.__class__, 'get_' + val_name)
+        if val_type.startswith('xsd'):
+            set_func(obj, args[idx + 2])
+        else:
+            if type['member'][val_name]['sequence']:
+                add_func = getattr(obj.__class__, 'add_' + val_name)
+                val_obj_list = get_func(obj)
+                if not val_obj_list:
+                    val_obj = getattr(vnc_api, val_type)()
+                    self.set_type(args, idx + 1, val_type, val_obj)
+                    add_func(obj, val_obj)
+                else:
+                    val_obj = val_obj_list[0]
+                    self.set_type(args, idx + 1, val_type, val_obj)
+                    set_func(obj, val_obj_list)
+            else:
+                val_obj = get_func(obj)
+                if not val_obj:
+                    val_class = getattr(vnc_api, val_type)
+                    val_obj = val_class()
+                self.set_type(args, idx + 1, val_type, val_obj)
+                set_func(obj, val_obj)
+
+    def do_set(self, args):
+        if not self.edit.mode:
+            return
+        args = args.split(' ')
+        id = res_identifier[self.edit.id_name]
+        if (args[0] == 'parent'):
+            self.set_parent(args[1], args[2])
+        elif args[0] in id['property'].keys():
+            set_func = getattr(self.edit.obj.__class__,
+                    'set_' + args[0].replace('-', '_'))
+            get_func = getattr(self.edit.obj.__class__,
+                    'get_' + args[0].replace('-', '_'))
+            type_name = id['property'][args[0]]['type']
+            if type_name.startswith('xsd'):
+                set_func(self.edit.obj, args[1])
+            else:
+                type_obj = get_func(self.edit.obj)
+                if not type_obj:
+                    type_class = getattr(vnc_api, type_name)
+                    type_obj = type_class()
+                self.set_type(args, 0, type_name, type_obj)
+                set_func(self.edit.obj, type_obj)
+        elif args[0] in id['reference'].keys():
+            pass
+        else:
+            print 'ERROR: %s unknown!' %(args[0])
+            return
+
+    def complete_set(self, text, line, begidx, endidx):
+        args = line.split(' ')
+        arg_count = len(args) - 1
+        list_all = []
+        id = res_identifier[self.edit.id_name]
+        if (arg_count == 0):
+            return
+        elif (arg_count == 1):
+            # Identifier properites, references and parent.
+            list_all = id['property'].keys() + id['reference'].keys()
+            list_all.append('parent')
+        elif args[1] == 'parent':
+            if arg_count == 2:
+                if id['parent']:
+                    list_all = id['parent']
+            elif arg_count == 3:
+                list_all = self.res_list_get(args[2])
+        elif args[1] in id['property'].keys():
+            type_name = id['property'][args[1]]['type']
+            for arg in args[2:arg_count]:
+                type_name = res_type[type_name]['member'][arg]['type']
+            if not type_name.startswith('xsd'):
+                list_all = res_type[type_name]['member'].keys()
+        elif args[1] in id['reference'].keys():
+            if arg_count == 2:
+                list_all = self.res_list_get(args[1])
+            elif arg_count == 3:
+                ref = id['reference'][args[1]]
+                if ref.has_key('attr'):
+                    list_all = res_type[ref['attr']]['member'].keys()
+            elif arg_count >= 4:
+                ref = id['reference'][args[1]]
+                type_name = res_type[ref['attr']]['member'][args[3]]['type']
+                for arg in args[4:arg_count]:
+                    type_name = res_type[type_name]['member'][arg]['type']
+                if not type_name.startswith('xsd'):
+                    list_all = res_type[type_name]['member'].keys()
+
+        if not text:
+            completions = list_all
+        else:
+            completions = [ i for i in list_all if i.startswith(text) ]
+        return completions
+
+
+if __name__ == '__main__':                                    
+    Config().cmdloop()
+
