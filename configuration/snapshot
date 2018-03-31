@@ -1,0 +1,56 @@
+#!/bin/sh
+
+skip_list="
+    documentation/index.html
+    id-to-fqname
+    fqname-to-id
+    prop-collection-get
+    prop-collection-update
+    ref-update
+    ref-relax-for-delete
+    useragent-kv
+    db-check
+    fetch-records
+    start-profile
+    stop-profile
+    list-bulk-collection
+    obj-perms
+    chown
+    chmod
+    multi-tenancy
+    aaa-mode
+    virtual-network/%s/subnet-ip-count
+    virtual-network/%s/ip-alloc
+    virtual-network/%s/ip-free"
+
+full_list=$(curl -s http://localhost:8082 | python -c $'import json\nimport sys\nd = json.load(sys.stdin)\nfor i in d.values()[1]: print "%s" %i["link"]["href"]')
+
+echo "Contrail Snapshot" > contrail.snapshot
+
+for href in $full_list
+do
+    #echo $href
+    hit=0
+    for skip_obj in $skip_list
+    do
+        skip_href=http://localhost:8082/$skip_obj
+        if [ $href == $skip_href ]; then
+            hit=1
+            break 
+        fi
+    done
+    if [ $hit == 1 ]; then
+        continue
+    fi
+
+    o=$(curl -s $href)
+    if [[ ${o:0:9} == "Not found" ]]; then
+        continue
+    fi
+    obj_list=$(echo $o | python -c $'import json\nimport sys\nd = json.load(sys.stdin)\nfor i in d.values()[0]: print "%s" %i["href"]')
+    for obj in $obj_list
+    do
+        curl -s $obj | python -m json.tool >> contrail.snapshot
+    done
+done
+
