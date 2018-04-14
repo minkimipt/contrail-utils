@@ -2685,10 +2685,10 @@ class ConfigBgpRouter(ConfigObject):
         peer_attrs = vnc_api.BgpPeeringAttributes(session = sess_list)
         peer_obj_list = []
         for name in peer_list:
-            obj = self.obj_get(name, msg = True)
-            if not obj:
+            peer_obj = self.obj_get(name, msg = True)
+            if not peer_obj:
                 return
-            peer_obj_list.append(obj)
+            peer_obj_list.append(peer_obj)
         for peer_obj in peer_obj_list:
             obj.add_bgp_router(peer_obj, peer_attrs)
             peer_obj.add_bgp_router(obj, peer_attrs)
@@ -2730,9 +2730,10 @@ class ConfigBgpRouter(ConfigObject):
         #if args.control:
         #    self.cn_full_mesh()
 
-        # API server will add peer reference for BGP node.
-        #if args.peer:
-        #    self.add_peer(obj, args.peer)
+        # API server will add peer reference for BGP node, but doesn't seem
+        # always the case??.
+        if args.peer:
+            self.add_peer(obj, args.peer)
 
     def delete_peer_ref(self, obj):
         peer_obj_list = []
