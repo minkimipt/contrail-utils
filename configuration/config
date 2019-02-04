@@ -1519,6 +1519,7 @@ class ConfigNetwork(ConfigObject):
         if not rt_list:
             return
         rt_list.delete_route_target('target:%s' %(rt))
+        obj.set_route_target_list(rt_list)
 
     def add_route_table(self, obj, rt):
         try:
@@ -1589,7 +1590,10 @@ class ConfigNetwork(ConfigObject):
         #    self.route_table_del(obj, args.route_table)
         #    update = True
         if update:
-            self.vnc.virtual_network_update(obj)
+            try:
+                self.vnc.virtual_network_update(obj)
+            except Exception as e:
+                print 'ERROR: %s' %(str(e))
         else:
             try:
                 self.vnc.virtual_network_delete(id = obj.uuid)
