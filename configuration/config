@@ -1570,6 +1570,8 @@ class ConfigNetwork(ConfigObject):
             print 'ERROR: Virtual network %s is not found!' %(args.name)
         if args.policy:
             self.add_policy(obj, args.policy, args.dynamic)
+        if args.route_target:
+            self.add_route_target(obj, args.route_target)
         self.vnc.virtual_network_update(obj)
 
     def delete(self, args):
@@ -1580,9 +1582,9 @@ class ConfigNetwork(ConfigObject):
         if args.policy:
             self.policy_del(obj, args.policy)
             update = True
-        #if args.route_target:
-        #    self.route_target_del(obj, args.route_target)
-        #    update = True
+        if args.route_target:
+            self.route_target_del(obj, args.route_target)
+            update = True
         #if args.route_table:
         #    self.route_table_del(obj, args.route_table)
         #    update = True
@@ -3473,6 +3475,8 @@ class ConfigCli():
         p = ps_add.add_parser('network', help = 'Virtual Network')
         p.set_defaults(obj_class = ConfigNetwork, obj_func = 'add')
         p.add_argument('name', metavar = '<name>', help = 'The name')
+        p.add_argument('--route-target', metavar = '<route_target>',
+                       help = 'Route Target')
         p.add_argument('--policy', metavar = '<policy>', help = 'Policy')
         p.add_argument('--dynamic', action = 'store_true',
                 help = 'Dynamic policy')
@@ -3480,6 +3484,8 @@ class ConfigCli():
         p = ps_delete.add_parser('network', help = 'Virtual Network')
         p.set_defaults(obj_class = ConfigNetwork, obj_func = 'delete')
         p.add_argument('name', metavar = '<name>', help = 'The name')
+        p.add_argument('--route-target', metavar = '<route_target>',
+                       help = 'Route Target')
         p.add_argument('--policy', metavar = '<policy>',
                 help = 'Policy')
 
@@ -3523,9 +3529,9 @@ class ConfigCli():
 
 
 if __name__ == '__main__':
-    for arg in default_args:
-        if not arg[0] in sys.argv:
-            sys.argv.insert(1, arg[0])
-            sys.argv.insert(2, arg[1])
+    # for arg in default_args:
+    #     if not arg[0] in sys.argv:
+    #         sys.argv.insert(1, arg[0])
+    #         sys.argv.insert(2, arg[1])
     ConfigCli().run()
 
