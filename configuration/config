@@ -154,7 +154,7 @@ class ConfigObject(object):
         elif (args.format == 'dict'):
             self.show_dict(obj)
         else:
-            self.show_json(obj)      
+            self.show_json(obj)
 
     # Delete object, all child objects and back-referenced objects.
     def del_obj_with_dep(self, obj, obj_type):
@@ -213,7 +213,7 @@ class ConfigAcl(ConfigObject):
 
 class ConfigCni(ConfigObject):
     def __init__(self, client):
-        super(ConfigCni, self).__init__(client, client.tenant) 
+        super(ConfigCni, self).__init__(client, client.tenant)
 
     def show(self, args):
         vm_name = '%s-%s' % (socket.gethostname(), args.name)
@@ -452,7 +452,7 @@ class ConfigIpam(ConfigObject):
 
     def delete(self, args):
         update = False
-        obj = self.obj_get(name, msg = True)
+        obj = self.obj_get(args.name, msg = True)
         if not obj:
             return
         #if domain_name:
@@ -1138,7 +1138,7 @@ class ConfigPolicy(ConfigObject):
                 analyzer_address = None
             elif (arg_name == 'analyzer-address'):
                 analyzer_address = arg_val
- 
+
         rule = vnc_api.PolicyRuleType()
         if not direction:
             direction = '<>'
@@ -1465,7 +1465,7 @@ class ConfigNetwork(ConfigObject):
                     subnet_list = item['attr'].get_ipam_subnets()
                     break
         subnet_list.append(ipam_subnet)
-        obj.add_network_ipam(ref_obj = ipam_obj,    
+        obj.add_network_ipam(ref_obj = ipam_obj,
                 ref_data = vnc_api.VnSubnetsType(subnet_list))
 
         obj_list = []
@@ -2685,10 +2685,10 @@ class ConfigBgpRouter(ConfigObject):
         peer_attrs = vnc_api.BgpPeeringAttributes(session = sess_list)
         peer_obj_list = []
         for name in peer_list:
-            peer_obj = self.obj_get(name, msg = True)
-            if not peer_obj:
+            obj = self.obj_get(name, msg = True)
+            if not obj:
                 return
-            peer_obj_list.append(peer_obj)
+            peer_obj_list.append(obj)
         for peer_obj in peer_obj_list:
             obj.add_bgp_router(peer_obj, peer_attrs)
             peer_obj.add_bgp_router(obj, peer_attrs)
@@ -2730,10 +2730,9 @@ class ConfigBgpRouter(ConfigObject):
         #if args.control:
         #    self.cn_full_mesh()
 
-        # API server will add peer reference for BGP node, but doesn't seem
-        # always the case??.
-        if args.peer:
-            self.add_peer(obj, args.peer)
+        # API server will add peer reference for BGP node.
+        #if args.peer:
+        #    self.add_peer(obj, args.peer)
 
     def delete_peer_ref(self, obj):
         peer_obj_list = []
@@ -2950,11 +2949,12 @@ class ConfigTest():
 
 class ConfigClient():
     def __init__(self, auth_username, auth_password, auth_domain, auth_tenant,
-            api_server, region, auth_server, auth_url, tenant):
+                 api_server, region, auth_server, auth_url, tenant, conf_file):
         self.vnc = vnc_api.VncApi(username = auth_username,
-                password = auth_password, tenant_name = auth_tenant,
-                domain_name = auth_domain, api_server_host = api_server,
-                auth_host = auth_server, auth_url = auth_url)
+                                  password = auth_password, tenant_name = auth_tenant,
+                                  domain_name = auth_domain, api_server_host = api_server,
+                                  auth_host = auth_server, auth_url = auth_url,
+                                  conf_file = conf_file, api_server_use_ssl = True)
         self.nova = None
         if not tenant:
             tenant = auth_tenant
@@ -3005,6 +3005,8 @@ class ConfigCli():
         parser.add_argument('--auth-url', help = 'Auth URL')
         parser.add_argument('--api-server', help = 'API server address')
         parser.add_argument('--tenant', help = 'Tenant name')
+        parser.add_argument('--config', help = 'Config file for VNC API',
+                            default = 'vnc_api_lib.ini')
 
         op_parsers = parser.add_subparsers(metavar = '<operation>')
         opp_list = op_parsers.add_parser('list')
@@ -3513,7 +3515,7 @@ class ConfigCli():
         client = ConfigClient(args.auth_username, args.auth_password,
                 args.auth_domain, args.auth_tenant, args.api_server,
                 args.auth_region, args.auth_server, args.auth_url,
-                args.tenant)
+                args.tenant, args.config)
         obj = args.obj_class(client = client)
         func = getattr(obj, args.obj_func)
         func(args)
