@@ -2955,7 +2955,7 @@ class ConfigTest():
 
 class ConfigClient():
     def __init__(self, auth_username, auth_password, auth_domain, auth_tenant,
-                 api_server, region, auth_server, auth_url, tenant, conf_file):
+                 api_server, api_domain, region, auth_server, auth_url, tenant, conf_file):
         self.vnc = vnc_api.VncApi(username = auth_username,
                                   password = auth_password, tenant_name = auth_tenant,
                                   domain_name = auth_domain, api_server_host = api_server,
@@ -2966,7 +2966,7 @@ class ConfigClient():
             tenant = auth_tenant
         try:
             self.tenant = self.vnc.project_read(
-                    fq_name = [auth_domain, tenant])
+                    fq_name = [api_domain, tenant])
         except:
             self.tenant = None
 
@@ -3010,6 +3010,7 @@ class ConfigCli():
         parser.add_argument('--auth-server', help = 'Auth server address')
         parser.add_argument('--auth-url', help = 'Auth URL')
         parser.add_argument('--api-server', help = 'API server address')
+        parser.add_argument('--api-domain', help = 'API domain name')
         parser.add_argument('--tenant', help = 'Tenant name')
         parser.add_argument('--config', help = 'Config file for VNC API',
                             default = 'vnc_api_lib.ini')
@@ -3522,10 +3523,17 @@ class ConfigCli():
         args = self.parser.parse_args()
         #print args
         #return
-        client = ConfigClient(args.auth_username, args.auth_password,
-                args.auth_domain, args.auth_tenant, args.api_server,
-                args.auth_region, args.auth_server, args.auth_url,
-                args.tenant, args.config)
+        client = ConfigClient(auth_username = args.auth_username,
+                              auth_password = args.auth_password,
+                              auth_domain = args.auth_domain,
+                              auth_tenant = args.auth_tenant,
+                              api_server = args.api_server,
+                              api_domain = args.api_domain,
+                              region = args.auth_region,
+                              auth_server = args.auth_server,
+                              auth_url = args.auth_url,
+                              tenant = args.tenant,
+                              conf_file = args.config)
         obj = args.obj_class(client = client)
         func = getattr(obj, args.obj_func)
         func(args)
